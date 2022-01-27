@@ -60,12 +60,28 @@ func cadastrarClientes(rw http.ResponseWriter, r *http.Request) {
 func buscarClientes(rw http.ResponseWriter, r *http.Request) {
 	p := strings.Split(r.URL.Path, "/")
 	id, _ := strconv.Atoi(p[2])
-
 	for _, C := range Clientes {
 		if C.Id == id {
 			json.NewEncoder(rw).Encode(C)
+			return
 		}
 	}
+	rw.WriteHeader(http.StatusNotFound)
+	return
+}
+
+func deleteClientes(rw http.ResponseWriter, r *http.Request) {
+	p := strings.Split(r.URL.Path, "/")
+	id, _ := strconv.Atoi(p[2])
+	for i, C := range Clientes {
+		if C.Id == id {
+			Clientes = append(Clientes[0:i], Clientes[i+1:]...)
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	rw.WriteHeader(http.StatusNotFound)
+	return
 }
 
 func rotasClientes(rw http.ResponseWriter, r *http.Request) {
@@ -80,6 +96,8 @@ func rotasClientes(rw http.ResponseWriter, r *http.Request) {
 		cadastrarClientes(rw, r)
 	case r.Method == "GET" && len(p) == 3 && p[2] != "" || len(p) == 4 && p[3] == "":
 		buscarClientes(rw, r)
+	case r.Method == "DELETE":
+		deleteClientes(rw, r)
 	}
 }
 
