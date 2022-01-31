@@ -7,7 +7,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 type Cliente struct {
@@ -39,27 +40,32 @@ func rotaMain(rw http.ResponseWriter, r *http.Request) {
 }
 
 func listarClientes(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Add("Content-Type", "application/json")
 	encoder := json.NewEncoder(rw)
 	encoder.Encode(Clientes)
 }
 func cadastrarClientes(rw http.ResponseWriter, r *http.Request) {
-	rw.WriteHeader(http.StatusCreated)
+	rw.Header().Add("Content-Type", "application/json")
 
-	l, err := ioutil.ReadAll(r.Body)
+	c, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Fatal()
 	}
 	var novoCliente Cliente
-	json.Unmarshal(l, &novoCliente)
+	json.Unmarshal(c, &novoCliente)
 	novoCliente.Id = len(Clientes) + 1
 	Clientes = append(Clientes, novoCliente)
 
 	encoder := json.NewEncoder(rw)
 	encoder.Encode(novoCliente)
+	//rw.WriteHeader(http.StatusCreated)
 }
 func buscarClientes(rw http.ResponseWriter, r *http.Request) {
-	p := strings.Split(r.URL.Path, "/")
-	id, _ := strconv.Atoi(p[2])
+	rw.Header().Add("Content-Type", "application/json")
+
+	v := mux.Vars(r)
+	id, _ := strconv.Atoi(v["id"])
+
 	for _, C := range Clientes {
 		if C.Id == id {
 			json.NewEncoder(rw).Encode(C)
@@ -67,12 +73,14 @@ func buscarClientes(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rw.WriteHeader(http.StatusNotFound)
-	return
 }
 
 func deleteClientes(rw http.ResponseWriter, r *http.Request) {
-	p := strings.Split(r.URL.Path, "/")
-	id, _ := strconv.Atoi(p[2])
+	rw.Header().Add("Content-Type", "application/json")
+
+	v := mux.Vars(r)
+	id, _ := strconv.Atoi(v["id"])
+
 	for i, C := range Clientes {
 		if C.Id == id {
 			Clientes = append(Clientes[0:i], Clientes[i+1:]...)
@@ -81,36 +89,44 @@ func deleteClientes(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rw.WriteHeader(http.StatusNotFound)
-	return
 }
 
-func rotasClientes(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Set("Content-Type", "application/json")
+func editarClientes(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Add("Content-Type", "application/json")
 
-	p := strings.Split(r.URL.Path, "/")
+	v := mux.Vars(r)
+	id, _ := strconv.Atoi(v["id"])
 
-	switch {
-	case r.Method == "GET" && len(p) == 2 || len(p) == 3 && p[2] == "":
-		listarClientes(rw, r)
-	case r.Method == "POST":
-		cadastrarClientes(rw, r)
-	case r.Method == "GET" && len(p) == 3 && p[2] != "" || len(p) == 4 && p[3] == "":
-		buscarClientes(rw, r)
-	case r.Method == "DELETE":
-		deleteClientes(rw, r)
+	c, _ := ioutil.ReadAll(r.Body)
+
+	var Ecliente Cliente
+	json.Unmarshal(c, &Ecliente)
+
+	for i, C := range Clientes {
+		if C.Id == id {
+			Clientes[i] = Ecliente
+			json.NewEncoder(rw).Encode(Ecliente)
+			return
+		}
 	}
+	rw.WriteHeader(http.StatusNotFound)
 }
 
-func rotaConfig() {
-	http.HandleFunc("/", rotaMain)
-	http.HandleFunc("/clientes", rotasClientes)
-	http.HandleFunc("/clientes/", rotasClientes)
+func rotaConfig(rota *mux.Router) {
+
+	rota.HandleFunc("/", rotaMain)
+	rota.HandleFunc("/clientes", listarClientes).Methods("GET")
+	rota.HandleFunc("/clientes/{id}", buscarClientes).Methods("GET")
+	rota.HandleFunc("/clientes/", cadastrarClientes).Methods("POST")
+	rota.HandleFunc("/clientes/{id}", deleteClientes).Methods("DELETE")
+	rota.HandleFunc("/clientes/{id}", editarClientes).Methods("PUT")
 }
 
 func serverConfig() {
-	rotaConfig()
+	rota := mux.NewRouter().StrictSlash(true)
+	rotaConfig(rota)
 	fmt.Println("Servidor esta rodando na porta 4553.")
-	log.Fatal(http.ListenAndServe(":4553", nil))
+	log.Fatal(http.ListenAndServe(":4553", rota))
 }
 
 func main() {
