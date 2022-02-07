@@ -7,9 +7,11 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -68,23 +70,21 @@ func cadastrarClientes(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, inserterro := db.Exec("INSERT INTO cliente (nome, tipo) VALUES ($1, $2)", novoCliente.Nome, novoCliente.Tipo)
+	_, inserterro := db.Exec("INSERT INTO cliente (nome, tipo) VALUES ($1, $2)", novoCliente.Nome, novoCliente.Tipo)
 
-	//pegando o ultimo id gerado pelo banco
-	idgerado, lasterr := result.LastInsertId()
-
-	//verificando erro de inserção e do lasinsertid
-	if inserterro != nil || lasterr != nil {
+	//verificando erro de inserção
+	if inserterro != nil {
+		fmt.Println("erro inseção: " + inserterro.Error())
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	novoCliente.Id = int(idgerado)
 
 	//respondendo para cliente satus e informação inserida
 	rw.WriteHeader(http.StatusCreated)
 	encoder := json.NewEncoder(rw)
 	encoder.Encode(novoCliente)
 }
+
 func buscarClientes(rw http.ResponseWriter, r *http.Request) {
 	v := mux.Vars(r)
 	id, _ := strconv.Atoi(v["id"])
@@ -183,8 +183,15 @@ func serverConfig() {
 }
 
 func dbConnect() {
+	enverr := godotenv.Load(".env")
+	if enverr != nil {
+		fmt.Println("não carregou arquivo .env")
+	}
+
 	var err error
-	db, err = sql.Open("postgres", "postgres://postgres:postgres@localhost/postgres?sslmode=disable")
+	sInfo := fmt.Sprintf("postgres://%s:%s%s?sslmode=disable",
+		os.Getenv("DBUSER"), os.Getenv("DBPASS"), os.Getenv("DBNAME"))
+	db, err = sql.Open("postgres", sInfo)
 
 	if err != nil {
 		log.Fatal(err.Error())
